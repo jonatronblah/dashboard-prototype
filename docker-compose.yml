@@ -10,7 +10,7 @@ services:
   web:
     build:
       context:  ./services/web
-    command: gunicorn --bind 0.0.0.0:5000 app:server
+    command: gunicorn --timeout 3600 --bind 0.0.0.0:5000 app:server
     expose:
       - 5000
     env_file:

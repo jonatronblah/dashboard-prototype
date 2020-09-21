@@ -14,9 +14,11 @@ from sqlalchemy.orm import Session, load_only
 from sqlalchemy.pool import NullPool
 from . import config
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import datetime
 
-from .queries import get_order_numbers, get_service_orders
+from .queries import get_order_numbers, get_service_orders, get_bill_details, year_over_year, plot_yoy
     
     
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -62,22 +64,17 @@ def render_content(tab):
     
     elif tab == 'tab-2':
         return html.Div([
-    dcc.Dropdown(
-        id='service-col',
-        options=[{'label': 'Source Type', 'value': 'VALUE'},
-                {'label': 'Department', 'value': 'NAME'}],
-        value='VALUE'
+    dcc.Input(
+        id='year-input',
+        type='text',
+        value='20'
     ),
     dcc.Input(
-        id='day-input',
-        type='number',
-        value=30
+        id='month-input',
+        type='text',
+        value='05'
     ),
-    dcc.Graph(id='sd-graph'),
-    html.Table([
-        html.Tr([html.Td(['Overall Mean Time to Completion (Minutes)']), html.Td(id='row1')]),
-        html.Tr([html.Td(['Percentage of Items Completed']), html.Td(id='row2')])
-    ])    
+    dcc.Graph(id='yoy-graph')
 ])
 
     elif tab == 'tab-3':
@@ -106,14 +103,14 @@ def render_content(tab):
 
 
 
-
+#order completion callback
 @app.callback(
     [Output('sd-graph', 'figure'),
      Output('row1', 'children'),
      Output('row2', 'children')],
     [Input('day-input', 'value'),
      Input('service-col', 'value')])
-def update_graph(day_val, col_val):
+def update_graph_orders(day_val, col_val):
     l = get_order_numbers(day_val)
     df = get_service_orders(l)
     comptime = df.completiontime.mean()
@@ -121,7 +118,17 @@ def update_graph(day_val, col_val):
     dfg = df.groupby(col_val).mean().sort_values('completiontime').reset_index()
     fig1 = px.bar(dfg, x=col_val, y='completiontime')
     return fig1, comptime, perc_complete
-    
+
+#yoy budget callback
+@app.callback(
+    Output('yoy-graph', 'figure'),
+    [Input('year-input', 'value'),
+     Input('month-input', 'value')])
+def update_graph_yoy(year_val, month_val):
+    ty, ly = get_bill_details(year_val, month_val)
+    ty_cost, ly_cost = year_over_year(ty, ly)
+    fig = plot_yoy(ty_cost, ly_cost)
+    return fig
 
 
 

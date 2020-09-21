@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session, load_only
 from sqlalchemy.pool import NullPool
 from . import config
 import datetime
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 ###order completion###
 def get_order_numbers(n):
@@ -69,3 +72,92 @@ def get_service_orders(l):
     session.close()
     server.stop()
     return df
+    
+    
+    
+    
+###budget - year over year###
+def get_bill_details(year, month):
+    server = SSHTunnelForwarder(
+    (config.pcr_ssh_url, 0),
+    ssh_username=config.pcr_ssh_user,
+    ssh_password=config.pcr_ssh_pass,
+    remote_bind_address=(config.pcr_db_name, 3306))
+    server.start()
+    localport = str(server.local_bind_port)
+    engine = create_engine(config.pcr_db_conn_str+localport+'/pcr360_prod', poolclass=NullPool)
+    metadata = MetaData()
+    
+    bill_details = Table('BILL_DETAILS_' + year + month, metadata, autoload=True, autoload_with=engine)
+    session = Session(engine)
+    
+    r = session.query(bill_details).all()
+    cols = session.query(bill_details).column_descriptions
+    cols = [i['name'] for i in cols]
+    df1 = pd.DataFrame(r, columns=cols)
+    
+    last_year = str(int(year) - 1)
+    bill_details = Table('BILL_DETAILS_' + last_year + month, metadata, autoload=True, autoload_with=engine)
+    session = Session(engine)
+    
+    r = session.query(bill_details).all()
+    cols = session.query(bill_details).column_descriptions
+    cols = [i['name'] for i in cols]
+    df2 = pd.DataFrame(r, columns=cols)
+    
+    
+    
+    
+    session.close()
+    server.stop()
+    return df1, df2
+    
+def year_over_year(ty, ly):
+    ty = ty[ty.COST >0]
+    ly = ly[ly.COST >0]
+    ty['COST'] = ty['COST'].astype('float')
+    ly['COST'] = ly['COST'].astype('float')
+    ty_cost = ty.groupby('REVENUE_OBJECT_CODE_DESC').sum()['COST']
+    ly_cost = ly.groupby('REVENUE_OBJECT_CODE_DESC').sum()['COST']
+    
+    
+    return ty_cost, ly_cost
+    
+def plot_yoy(ty_cost, ly_cost):
+    service_cat = []
+    perc_chng = []
+
+    for i in ty_cost.index:
+        if i in ly_cost:
+            change = ty_cost[i] / ly_cost[i]
+            service_cat.append(i)
+            perc_chng.append(change)
+            
+            
+    fig = make_subplots(2, 2, specs=[[{'type':'domain'}, {'type':'domain'}], [{'type':'table'}, {'type':'domain'}]],
+                        subplot_titles=['2019', '2020', 'Service Type'])
+    
+    
+    fig.add_trace(go.Pie(labels=ly_cost.index, values=ly_cost.values, scalegroup='one',
+                         name="2019"), 1, 1)
+    fig.add_trace(go.Pie(labels=ty_cost.index, values=ty_cost.values, scalegroup='one',
+                         name="2020"), 1, 2)
+    
+    fig.add_trace(
+        go.Table(
+            header=dict(
+                values=["Category", "Percent Change"],
+                font=dict(size=10),
+                align="left"
+            ),
+            cells=dict(
+                values=[service_cat, perc_chng],
+                align = "left"),
+            name="Service Type"
+        ),
+        row=2, col=1
+    )
+    
+    
+    fig.update_layout(title_text='Total YoY Growth: ' + str((sum(ty_cost.values) / sum(ly_cost.values)) - 1))
+    return fig
