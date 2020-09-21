@@ -28,9 +28,20 @@ app.config.suppress_callback_exceptions = True
 
 server = app.server
 
-
-
 app.layout = html.Div([
+    dcc.Tabs(id="tabs", value='tab-1', children=[
+        dcc.Tab(label='Tab 1', value='tab-1'),
+        dcc.Tab(label='Tab 2', value='tab-2'),
+        dcc.Tab(label='Tab 3', value='tab-3')
+    ]),
+    html.Div(id='tabs-content')
+])
+
+@app.callback(Output('tabs-content', 'children'),
+              [Input('tabs', 'value')])
+def render_content(tab):
+    if tab == 'tab-1':
+        return html.Div([
     dcc.Dropdown(
         id='service-col',
         options=[{'label': 'Source Type', 'value': 'VALUE'},
@@ -46,9 +57,55 @@ app.layout = html.Div([
     html.Table([
         html.Tr([html.Td(['Overall Mean Time to Completion (Minutes)']), html.Td(id='row1')]),
         html.Tr([html.Td(['Percentage of Items Completed']), html.Td(id='row2')])
-    ])
-    
+    ])    
 ])
+    
+    elif tab == 'tab-2':
+        return html.Div([
+    dcc.Dropdown(
+        id='service-col',
+        options=[{'label': 'Source Type', 'value': 'VALUE'},
+                {'label': 'Department', 'value': 'NAME'}],
+        value='VALUE'
+    ),
+    dcc.Input(
+        id='day-input',
+        type='number',
+        value=30
+    ),
+    dcc.Graph(id='sd-graph'),
+    html.Table([
+        html.Tr([html.Td(['Overall Mean Time to Completion (Minutes)']), html.Td(id='row1')]),
+        html.Tr([html.Td(['Percentage of Items Completed']), html.Td(id='row2')])
+    ])    
+])
+
+    elif tab == 'tab-3':
+        return html.Div([
+    dcc.Dropdown(
+        id='service-col',
+        options=[{'label': 'Source Type', 'value': 'VALUE'},
+                {'label': 'Department', 'value': 'NAME'}],
+        value='VALUE'
+    ),
+    dcc.Input(
+        id='day-input',
+        type='number',
+        value=30
+    ),
+    dcc.Graph(id='sd-graph'),
+    html.Table([
+        html.Tr([html.Td(['Overall Mean Time to Completion (Minutes)']), html.Td(id='row1')]),
+        html.Tr([html.Td(['Percentage of Items Completed']), html.Td(id='row2')])
+    ])    
+])
+
+
+
+
+
+
+
 
 @app.callback(
     [Output('sd-graph', 'figure'),
