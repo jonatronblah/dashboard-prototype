@@ -17,8 +17,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import datetime
+import pmdarima as pm
+from pmdarima.model_selection import train_test_split
+import numpy as np
 
-from .queries import get_order_numbers, get_service_orders, get_bill_details, year_over_year, plot_yoy
+from .queries import get_order_numbers, get_service_orders, get_bill_details, year_over_year, plot_yoy, get_budget, train_model_graph
     
     
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -56,6 +59,7 @@ def render_content(tab):
         value=30
     ),
     dcc.Graph(id='sd-graph'),
+    dcc.Graph(id='sd-graph-2'),
     html.Table([
         html.Tr([html.Td(['Overall Mean Time to Completion (Minutes)']), html.Td(id='row1')]),
         html.Tr([html.Td(['Percentage of Items Completed']), html.Td(id='row2')])
@@ -63,38 +67,43 @@ def render_content(tab):
 ])
     
     elif tab == 'tab-2':
+        months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        monthnums = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+        optionsmonths = []
+        for e, i in enumerate(months):
+            optionsmonths.append({'label': i, 'value': monthnums[e]})
+        years = ['2020', '2019', '2018', '2017', '2016', '2015']
+        yearnums = ['20', '19', '18', '17', '16', '15']
+        optionsyears = []
+        for e, i in enumerate(years):
+            optionsyears.append({'label': i, 'value': yearnums[e]})
         return html.Div([
-    dcc.Input(
+    dcc.Dropdown(
         id='year-input',
-        type='text',
+        options = optionsyears,
         value='20'
     ),
-    dcc.Input(
+    dcc.Dropdown(
         id='month-input',
-        type='text',
+        options = optionsmonths,
         value='05'
     ),
     dcc.Graph(id='yoy-graph')
 ])
 
     elif tab == 'tab-3':
+        ts_df = get_budget()
+        bill_dates = train_model_graph(ts_df)
+        y = ts_df['TOTAL'].values
+        model = pm.auto_arima(y)
+        forecasts = model.predict(12)
+        
+        
+        ts_fig = px.line()
+        ts_fig.add_scatter(x=bill_dates, y=ts_df['TOTAL'].values, name='Historical Bills')
+        ts_fig.add_scatter(x=bill_dates[len(ts_df['BILL_DATE'].values):], y=forecasts, mode='lines', name = 'Predicted Bills')
         return html.Div([
-    dcc.Dropdown(
-        id='service-col',
-        options=[{'label': 'Source Type', 'value': 'VALUE'},
-                {'label': 'Department', 'value': 'NAME'}],
-        value='VALUE'
-    ),
-    dcc.Input(
-        id='day-input',
-        type='number',
-        value=30
-    ),
-    dcc.Graph(id='sd-graph'),
-    html.Table([
-        html.Tr([html.Td(['Overall Mean Time to Completion (Minutes)']), html.Td(id='row1')]),
-        html.Tr([html.Td(['Percentage of Items Completed']), html.Td(id='row2')])
-    ])    
+        dcc.Graph(id='ts-graph', figure=ts_fig)  
 ])
 
 
@@ -106,6 +115,7 @@ def render_content(tab):
 #order completion callback
 @app.callback(
     [Output('sd-graph', 'figure'),
+     Output('sd-graph-2', 'figure'),
      Output('row1', 'children'),
      Output('row2', 'children')],
     [Input('day-input', 'value'),
@@ -116,8 +126,14 @@ def update_graph_orders(day_val, col_val):
     comptime = df.completiontime.mean()
     perc_complete = len(df[~df.typeCompleted.isnull()]) / len(df)
     dfg = df.groupby(col_val).mean().sort_values('completiontime').reset_index()
-    fig1 = px.bar(dfg, x=col_val, y='completiontime')
-    return fig1, comptime, perc_complete
+    fig1 = px.bar(dfg, x=col_val, y='completiontime', labels={col_val: 'Ticket Source', 'completiontime': 'Avg Ticket Completion Time'})
+    
+    df_t = df[~df.completiontime.isnull()]
+    df_t = df_t.set_index('typeCompleted').resample('1W').mean().reset_index()
+    fig2 = px.line(df_t, x='typeCompleted', y='completiontime', labels={'typeCompleted': 'Week Of', 'completiontime': 'Avg Ticket Completion Time'})
+    
+    
+    return fig1, fig2, comptime, perc_complete
 
 #yoy budget callback
 @app.callback(

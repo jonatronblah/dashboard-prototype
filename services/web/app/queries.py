@@ -11,6 +11,9 @@ import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import pmdarima as pm
+from pmdarima.model_selection import train_test_split
+import numpy as np
 
 ###order completion###
 def get_order_numbers(n):
@@ -131,17 +134,17 @@ def plot_yoy(ty_cost, ly_cost):
         if i in ly_cost:
             change = ty_cost[i] / ly_cost[i]
             service_cat.append(i)
-            perc_chng.append(change)
+            perc_chng.append(change*100)
             
             
-    fig = make_subplots(2, 2, specs=[[{'type':'domain'}, {'type':'domain'}], [{'type':'table'}, {'type':'domain'}]],
-                        subplot_titles=['2019', '2020', 'Service Type'])
+    fig = make_subplots(1, 3, specs=[[{'type':'table'}, {'type':'domain'}, {'type':'domain'}]],
+                        subplot_titles=['Service Type', 'Previous Year', 'Selected Year'])
     
     
     fig.add_trace(go.Pie(labels=ly_cost.index, values=ly_cost.values, scalegroup='one',
-                         name="2019"), 1, 1)
+                         name="2019"), 1, 2)
     fig.add_trace(go.Pie(labels=ty_cost.index, values=ty_cost.values, scalegroup='one',
-                         name="2020"), 1, 2)
+                         name="2020"), 1, 3)
     
     fig.add_trace(
         go.Table(
@@ -155,9 +158,83 @@ def plot_yoy(ty_cost, ly_cost):
                 align = "left"),
             name="Service Type"
         ),
-        row=2, col=1
+        row=1, col=1
     )
     
     
     fig.update_layout(title_text='Total YoY Growth: ' + str((sum(ty_cost.values) / sum(ly_cost.values)) - 1))
     return fig
+    
+    
+    
+###budget time series prediction###
+def get_budget():
+    server = SSHTunnelForwarder(
+    (config.pcr_ssh_url, 0),
+    ssh_username=config.pcr_ssh_user,
+    ssh_password=config.pcr_ssh_pass,
+    remote_bind_address=(config.pcr_db_name, 3306))
+    server.start()
+    localport = str(server.local_bind_port)
+    engine = create_engine(config.pcr_db_conn_str+localport+'/pcr360_prod', poolclass=NullPool)
+    metadata = MetaData()
+    
+    bills = Table('BILLS', metadata, autoload=True, autoload_with=engine)
+    
+    session = Session(engine)
+    
+    r = session.query(bills).all()
+    cols = session.query(bills).column_descriptions
+    cols = [i['name'] for i in cols]
+    df = pd.DataFrame(r, columns=cols)
+    session.close()
+    server.stop()
+    df = df[df.TEST_BILL == 0]
+    df = df[['BILL_DATE', 'CALL_COUNT', 'TOTAL']]
+    df['TOTAL'] = df['TOTAL'].astype('int32')
+    df = df[df['TOTAL'] > 0] 
+    return df
+    
+def train_model_graph(df):
+    current_dates = [pd.Timestamp(i) for i in df['BILL_DATE'].values] 
+    last_bill = current_dates[-1]
+    future_dates = []
+    for i in range(1, 13):
+        bill = pd.Timestamp(last_bill) + pd.DateOffset(months=i)
+        future_dates.append(bill)
+    bill_dates = np.append(current_dates, future_dates)
+    
+    
+    '''
+    y = df['TOTAL'].values
+    model = pm.auto_arima(y)
+    forecasts = model.predict(12)
+    
+    
+    fig = px.line()
+    fig.add_scatter(x=bill_dates, y=df['TOTAL'].values, name='Historical Bills')
+    fig.add_scatter(x=bill_dates[len(df['BILL_DATE'].values):], y=forecasts, mode='lines', name = 'Predicted Bills')
+    '''
+    return bill_dates
+    
+def train_model_test(df):
+    current_dates = [pd.Timestamp(i) for i in df['BILL_DATE'].values] 
+    last_bill = current_dates[-1]
+    future_dates = []
+    for i in range(1, 13):
+        bill = pd.Timestamp(last_bill) + pd.DateOffset(months=i)
+        future_dates.append(bill)
+    bill_dates = np.append(current_dates, future_dates)
+    
+    y = df['TOTAL'].values
+    model = pm.auto_arima(y, seasonal=True, m=1)
+    forecasts = model.predict(12)
+    
+   
+    return forecasts
+    
+    
+    
+    
+    
+    
