@@ -203,35 +203,15 @@ def train_model_graph(df):
         bill = pd.Timestamp(last_bill) + pd.DateOffset(months=i)
         future_dates.append(bill)
     bill_dates = np.append(current_dates, future_dates)
-    
-    
-    '''
     y = df['TOTAL'].values
     model = pm.auto_arima(y)
     forecasts = model.predict(12)
-    
-    
     fig = px.line()
     fig.add_scatter(x=bill_dates, y=df['TOTAL'].values, name='Historical Bills')
     fig.add_scatter(x=bill_dates[len(df['BILL_DATE'].values):], y=forecasts, mode='lines', name = 'Predicted Bills')
-    '''
-    return bill_dates
     
-def train_model_test(df):
-    current_dates = [pd.Timestamp(i) for i in df['BILL_DATE'].values] 
-    last_bill = current_dates[-1]
-    future_dates = []
-    for i in range(1, 13):
-        bill = pd.Timestamp(last_bill) + pd.DateOffset(months=i)
-        future_dates.append(bill)
-    bill_dates = np.append(current_dates, future_dates)
+    return fig
     
-    y = df['TOTAL'].values
-    model = pm.auto_arima(y, seasonal=True, m=1)
-    forecasts = model.predict(12)
-    
-   
-    return forecasts
     
     
     

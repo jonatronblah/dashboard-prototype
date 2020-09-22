@@ -35,9 +35,9 @@ server = app.server
 
 app.layout = html.Div([
     dcc.Tabs(id="tabs", value='tab-1', children=[
-        dcc.Tab(label='Tab 1', value='tab-1'),
-        dcc.Tab(label='Tab 2', value='tab-2'),
-        dcc.Tab(label='Tab 3', value='tab-3')
+        dcc.Tab(label='Aggregate Ticket Resolution', value='tab-1'),
+        dcc.Tab(label='Billing Year Over Year', value='tab-2'),
+        dcc.Tab(label='Billing Forecast', value='tab-3')
     ]),
     html.Div(id='tabs-content')
 ])
@@ -93,15 +93,7 @@ def render_content(tab):
 
     elif tab == 'tab-3':
         ts_df = get_budget()
-        bill_dates = train_model_graph(ts_df)
-        y = ts_df['TOTAL'].values
-        model = pm.auto_arima(y)
-        forecasts = model.predict(12)
-        
-        
-        ts_fig = px.line()
-        ts_fig.add_scatter(x=bill_dates, y=ts_df['TOTAL'].values, name='Historical Bills')
-        ts_fig.add_scatter(x=bill_dates[len(ts_df['BILL_DATE'].values):], y=forecasts, mode='lines', name = 'Predicted Bills')
+        ts_fig = train_model_graph(ts_df)
         return html.Div([
         dcc.Graph(id='ts-graph', figure=ts_fig)  
 ])
