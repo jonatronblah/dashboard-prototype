@@ -1,4 +1,4 @@
-pmdarima==1.6.1
+pmdarima
 gunicorn
 dash
 dash-auth

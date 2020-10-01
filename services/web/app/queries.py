@@ -204,8 +204,9 @@ def train_model_graph(df):
         future_dates.append(bill)
     bill_dates = np.append(current_dates, future_dates)
     y = df['TOTAL'].values
-    model = pm.auto_arima(y)
-    forecasts = model.predict(12)
+    arima = pm.ARIMA(order=(1, 1, 2), seasonal_order=(0, 1, 1, 12))
+    arima.fit(y)
+    forecasts = arima.predict(12)
     fig = px.line()
     fig.add_scatter(x=bill_dates, y=df['TOTAL'].values, name='Historical Bills')
     fig.add_scatter(x=bill_dates[len(df['BILL_DATE'].values):], y=forecasts, mode='lines', name = 'Predicted Bills')
